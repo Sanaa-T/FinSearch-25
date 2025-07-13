@@ -8,16 +8,16 @@ from collections import deque
 import matplotlib.pyplot as plt
 
 
-ENV_NAME = "CartPole-v1"
-EPISODES = 500
-GAMMA = 0.99
+EnvName = "CartPole-v1"
+Episodes = 500
+Gamma = 0.99
 LR = 1e-3
-BATCH_SIZE = 64
-MEMORY_SIZE = 10000
-TARGET_UPDATE = 10
-EPS_START = 1.0
-EPS_END = 0.01
-EPS_DECAY = 500
+BatchSize = 64
+MemorySize = 10000
+TargetUpdate = 10
+EPSStart = 1.0
+EPSEnd = 0.01
+EPSDecay = 500
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -43,8 +43,8 @@ class ReplayBuffer:
     def push(self, s, a, r, s_, done):
         self.buffer.append((s, a, r, s_, done))
 
-    def sample(self, batch_size):
-        samples = random.sample(self.buffer, batch_size)
+    def sample(self, BatchSize):
+        samples = random.sample(self.buffer, BatchSize)
         s, a, r, s_, d = zip(*samples)
         return (
             torch.tensor(s, dtype=torch.float32).to(device),
@@ -59,7 +59,7 @@ class ReplayBuffer:
 
 
 def select_action(state, steps_done):
-    epsilon = EPS_END + (EPS_START - EPS_END) * np.exp(-1. * steps_done / EPS_DECAY)
+    epsilon = EPSEnd + (EPSStart - EPSEnd) * np.exp(-1. * steps_done / EPSDecay)
     if random.random() < epsilon:
         return random.randrange(n_actions)
     else:
@@ -68,7 +68,7 @@ def select_action(state, steps_done):
             return policy_net(state_tensor).argmax(1).item()
 
 
-env = gym.make(ENV_NAME, render_mode='human')
+env = gym.make(EnvName, render_mode='human')
 obs_dim = env.observation_space.shape[0]
 n_actions = env.action_space.n
 
@@ -77,7 +77,7 @@ target_net = DQN(obs_dim, n_actions).to(device)
 target_net.load_state_dict(policy_net.state_dict())
 
 optimizer = optim.Adam(policy_net.parameters(), lr=LR)
-memory = ReplayBuffer(MEMORY_SIZE)
+memory = ReplayBuffer(MemorySize)
 
 
 plt.ion()
@@ -91,7 +91,7 @@ ax.grid(True)
 ax.legend()
 
 steps_done = 0
-for episode in range(EPISODES):
+for episode in range(Episodes):
     state, _ = env.reset()
     total_reward = 0
     done = False
@@ -107,18 +107,18 @@ for episode in range(EPISODES):
         total_reward += reward
         steps_done += 1
 
-        if len(memory) >= BATCH_SIZE:
-            s, a, r, s_, d = memory.sample(BATCH_SIZE)
+        if len(memory) >= BatchSize:
+            s, a, r, s_, d = memory.sample(BatchSize)
             q_vals = policy_net(s).gather(1, a)
             next_q = target_net(s_).max(1)[0].unsqueeze(1).detach()
-            expected_q = r + GAMMA * next_q * (1 - d)
+            expected_q = r + Gamma * next_q * (1 - d)
 
             loss = nn.functional.mse_loss(q_vals, expected_q)
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
 
-    if episode % TARGET_UPDATE == 0:
+    if episode % TargetUpdate == 0:
         target_net.load_state_dict(policy_net.state_dict())
 
     rewards_plot.append(total_reward)
@@ -127,7 +127,7 @@ for episode in range(EPISODES):
     ax.set_ylim(0, max(rewards_plot) + 10)
     plt.pause(0.01)
 
-    epsilon_now = EPS_END + (EPS_START - EPS_END) * np.exp(-1. * steps_done / EPS_DECAY)
+    epsilon_now = EPSEnd + (EPSStart - EPSEnd) * np.exp(-1. * steps_done / EPSDecay)
     print(f"Episode {episode}, Reward: {total_reward:.1f}, Epsilon: {epsilon_now:.3f}")
 
 env.close()
